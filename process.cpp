@@ -184,18 +184,41 @@ void Process::start_leader() {
                                 this -> pending_member_id = recved_msg -> proc_id;
                                 this -> members[this -> my_id].acknowledge = true;
 
-                                Req_Msg* packaged = hton(&req);
+                                if (all_member_ack()) {
+                                    this -> curr_state = process_state::LEADER;
+                                    this -> view_id += 1;
 
-                                for (j = 0; j <= fdmax; j++) {
-                                    if (FD_ISSET(j, &master)) {
-                                        if (j != listener && j != i) {
-                                            if (send(j, packaged, sizeof(Req_Msg), 0) == -1)
-                                                logger -> error("error sending");
+                                    bring_proc_online(this -> pending_member_id);
+
+                                    new_view_msg update_view_msg;
+                                    update_view_msg.view_id = this -> view_id;
+                                    update_view_msg.type = 2;
+                                    update_view_msg.new_proc_id = this -> pending_member_id;
+
+                                    this -> pending_member_id = -1; // reset pending member id;
+
+                                    new_view_msg* packged_msg = hton(&update_view_msg);
+                                    for (j = 0; j <= fdmax; j++) {
+                                        if (FD_ISSET(j, &master)) {
+                                            if (j != listener && j != i) {
+                                                if (send(j, packged_msg, sizeof(new_view_msg), 0) == -1)
+                                                    logger -> error("error sending new view msg");
+                                            }
                                         }
                                     }
-                                }
-                                this -> curr_state = process_state::Waiting_ACK;
+                                } else {
+                                    Req_Msg* packaged = hton(&req);
 
+                                    for (j = 0; j <= fdmax; j++) {
+                                        if (FD_ISSET(j, &master)) {
+                                            if (j != listener && j != i) {
+                                                if (send(j, packaged, sizeof(Req_Msg), 0) == -1)
+                                                    logger -> error("error sending");
+                                            }
+                                        }
+                                    }
+                                    this -> curr_state = process_state::Waiting_ACK;
+                                }
                                 break;
                             }
                             case msg_type::ok:
