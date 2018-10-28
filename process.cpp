@@ -420,7 +420,7 @@ void Process::start_member() {
     freeaddrinfo(servinfo);
 
     while (true) {
-        if ( (numbytes = recv(sockfd, buf, 1024, 0)) == -1 ) {
+        if ( (numbytes = recv(sockfd, buf, 1024, 0)) <= 0 ) {
             logger -> error("recv error");
         } else {
             logger -> info("receved message {}", numbytes);
