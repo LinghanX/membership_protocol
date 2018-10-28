@@ -51,6 +51,10 @@ Process::Process(std::vector<std::string> &addr_book, std::string port) {
     this -> curr_state = this -> my_id == 0
             ? process_state::LEADER : process_state::MEMBER;
 
+    logger -> info("my id is: {}", this -> my_id);
+    logger -> info("my leader is: {}", this -> leader_id);
+    logger -> info("my state is: {}", this -> curr_state);
+
 //    logger -> info("finished processing args");
 //    logger -> info("I am a {}", this -> curr_state);
 //
@@ -129,6 +133,8 @@ void Process::start_leader() {
     FD_SET(listener, &master);
 
     fdmax = listener;
+
+    logger -> info("start listenning");
 
     while (true) {
         read_fds = master;
