@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include "message.h"
+#include "network.h"
 
 enum process_state {
     LEADER,
@@ -39,15 +40,19 @@ protected:
     std::vector<member_stat> members;
     int view_id;
 
+    int pending_member_id;
+    int leader_id;
     void start_leader();
     void request_membership();
-    void idle();
-    void handle_message(int);
+    void start_member();
+    void handle_message(int, char* buf);
     msg_type check_msg_type(void* msg, ssize_t size);
     void broadcast_req_msg(Req_Msg *);
     void send_msg(void *msg, std::string addr, ssize_t size);
     bool all_member_ack();
     void init_new_view();
+    void bring_proc_online(int proc_id);
+
 
 public:
     Process(std::vector<std::string> &, std::string);

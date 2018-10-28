@@ -27,6 +27,8 @@ typedef struct  {
 
 typedef struct {
     int type;
+    int view_id;
+    int new_proc_id;
 } new_view_msg ;
 
 typedef struct {
@@ -38,6 +40,8 @@ typedef struct {
     int proc_id;
 } join_msg ;
 
+new_view_msg* hton(new_view_msg* msg);
+new_view_msg* ntoh(new_view_msg* msg);
 OK_Msg* hton(OK_Msg* msg);
 OK_Msg* ntoh(OK_Msg* msg);
 Req_Msg* hton(Req_Msg* msg);

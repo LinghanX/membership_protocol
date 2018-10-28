@@ -42,11 +42,8 @@ process k to be alive. otherwise we treat it as offline.
 
 ## algorithm
 
-When a node is first started, it goes into `init` mode, in 
-which it establish connections with all its neighbor nodes.
-Identify who's alive, and 
-
-    1) if its the leader, it announce itself to all members
-       in the member list, which is empty in the beginning.
-    2) if its a member, it sends a message to the leader 
-        requesting for membership.   
+    1) when a new process join the group, it first establish 
+        a connection with leader. 
+    2) when a connection is established, it sends a join message
+       to the leader.
+    3) the leader then broadcast message to all  
