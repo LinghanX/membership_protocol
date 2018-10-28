@@ -423,6 +423,7 @@ void Process::start_member() {
             logger -> error("recv error");
         } else {
             logger -> info("receved message");
+            logger -> info("is it equal to view msg: {}", numbytes == sizeof(new_view_msg));
             // got message from a client
             msg_type type = check_msg_type(buf, numbytes);
             switch (type) {
