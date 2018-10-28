@@ -208,6 +208,7 @@ void Process::start_leader() {
                                         if (FD_ISSET(j, &master)) {
                                             if (j != i) {
                                                 logger -> info("sending new view message");
+                                                logger -> info("size is: {}", sizeof(update_view_msg));
                                                 if (send(j, packged_msg, sizeof(new_view_msg), 0) == -1)
                                                     logger -> error("error sending new view msg");
                                             }
