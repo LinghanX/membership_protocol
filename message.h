@@ -14,30 +14,30 @@ enum OPERATION {
 };
 
 typedef struct {
-    int type;
-    int view_id;
-    int operation;
-    int peer_id;
+    uint32_t type;
+    uint32_t view_id;
+    uint32_t operation;
+    uint32_t peer_id;
 } Req_Msg;
 
 typedef struct  {
-    int type;
-    int peer_id;
+    uint32_t type;
+    uint32_t peer_id;
 } OK_Msg;
 
 typedef struct {
-    int type;
-    int view_id;
-    int new_proc_id;
+    uint32_t type;
+    uint32_t view_id;
+    uint32_t new_proc_id;
 } new_view_msg ;
 
 typedef struct {
-    int type;
+    uint32_t type;
 } new_leader_msg ;
 
 typedef struct {
-    int type;
-    int proc_id;
+    uint32_t type;
+    uint32_t proc_id;
 } join_msg ;
 
 new_view_msg* hton(new_view_msg* msg);
