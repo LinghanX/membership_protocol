@@ -351,7 +351,7 @@ msg_type Process::check_msg_type(void *msg, ssize_t size) {
     int *first_int = (int *) msg;
     *first_int = ntohl(*first_int);
 
-    logger -> info("msg type is: {}", first_int);
+    logger -> info("msg type is: {}", *first_int);
 
     if (size == sizeof(join_msg) && *first_int == 4) {
         return msg_type::join;
