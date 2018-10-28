@@ -188,6 +188,7 @@ void Process::start_leader() {
                                     this -> curr_state = process_state::LEADER;
                                     this -> view_id += 1;
 
+                                    logger -> info("l 191");
                                     bring_proc_online(this -> pending_member_id);
 
                                     new_view_msg update_view_msg;
@@ -198,9 +199,10 @@ void Process::start_leader() {
                                     this -> pending_member_id = -1; // reset pending member id;
 
                                     new_view_msg* packged_msg = hton(&update_view_msg);
+
                                     for (j = 0; j <= fdmax; j++) {
                                         if (FD_ISSET(j, &master)) {
-                                            if (j != listener && j != i) {
+                                            if (j != i) {
                                                 logger -> info("sending new view message");
                                                 if (send(j, packged_msg, sizeof(new_view_msg), 0) == -1)
                                                     logger -> error("error sending new view msg");
