@@ -353,6 +353,10 @@ msg_type Process::check_msg_type(void *msg, ssize_t size) {
         return msg_type::join;
     } else if (size == sizeof(OK_Msg) && *first_int == 1){
         return msg_type::ok;
+    } else if (size == sizeof(Req_Msg) && *first_int == 0) {
+        return msg_type::req;
+    } else if (size == sizeof(new_view_msg) && *first_int == 2) {
+        return msg_type::new_view;
     } else {
         logger -> error("unable to identify incoming message");
         return msg_type::unknown;
