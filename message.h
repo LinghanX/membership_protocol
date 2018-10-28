@@ -1,0 +1,46 @@
+//
+// Created by Linghan Xing on 10/27/18.
+//
+
+#ifndef PRJ2_MESSAGE_H
+#define PRJ2_MESSAGE_H
+
+#include <arpa/inet.h>
+
+enum OPERATION {
+    ADD,
+    DEL,
+    PENDING
+};
+
+typedef struct {
+    int type;
+    int view_id;
+    int operation;
+    int peer_id;
+} Req_Msg;
+
+typedef struct  {
+    int type;
+} ok_msg;
+
+typedef struct {
+    int type;
+} new_view_msg ;
+
+typedef struct {
+    int type;
+} new_leader_msg ;
+
+typedef struct {
+    int type;
+    int proc_id;
+} join_msg ;
+
+Req_Msg* hton(Req_Msg* msg);
+Req_Msg* ntoh(Req_Msg* msg);
+join_msg* hton(join_msg* msg);
+join_msg* ntoh(join_msg* msg);
+
+
+#endif //PRJ2_MESSAGE_H
