@@ -201,6 +201,7 @@ void Process::start_leader() {
                                     for (j = 0; j <= fdmax; j++) {
                                         if (FD_ISSET(j, &master)) {
                                             if (j != listener && j != i) {
+                                                logger -> info("sending new view message");
                                                 if (send(j, packged_msg, sizeof(new_view_msg), 0) == -1)
                                                     logger -> error("error sending new view msg");
                                             }
@@ -333,7 +334,7 @@ void Process::send_msg(void *msg, std::string addr, ssize_t size) {
 
     inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),
               s, sizeof s);
-    printf("client: connecting to %s\n", s);
+    printf("l 336: client: connecting to %s\n", s);
     freeaddrinfo(servinfo); // all done with this structure
 
     if ((numbytes = send(sockfd, msg, size, 0)) == -1) {
@@ -401,12 +402,14 @@ void Process::start_member() {
     this -> curr_state = process_state::MEMBER;
     if (send(sockfd, msg_to_send, sizeof(join_msg), 0) == -1)
         logger -> error("error sending new view msg");
+
     freeaddrinfo(servinfo);
 
     while (true) {
         if ( (numbytes = recv(sockfd, buf, 1024 - 1, 0)) == -1 ) {
             logger -> error("recv error");
         } else {
+            logger -> info("receved message");
             buf[numbytes] = '\0';
             // got message from a client
             msg_type type = check_msg_type(buf, numbytes);
