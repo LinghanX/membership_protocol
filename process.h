@@ -12,12 +12,14 @@
 enum process_state {
     LEADER,
     MEMBER,
-    NON_MEMBER
+    NON_MEMBER,
+    Waiting_ACK
 };
 struct member_stat {
     int id;
     bool alive;
     std::string address;
+    bool acknowledge;
 };
 enum msg_type {
     req,
@@ -44,6 +46,8 @@ protected:
     msg_type check_msg_type(void* msg, ssize_t size);
     void broadcast_req_msg(Req_Msg *);
     void send_msg(void *msg, std::string addr, ssize_t size);
+    bool all_member_ack();
+    void init_new_view();
 
 public:
     Process(std::vector<std::string> &, std::string);

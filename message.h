@@ -22,7 +22,8 @@ typedef struct {
 
 typedef struct  {
     int type;
-} ok_msg;
+    int peer_id;
+} OK_Msg;
 
 typedef struct {
     int type;
@@ -37,6 +38,8 @@ typedef struct {
     int proc_id;
 } join_msg ;
 
+OK_Msg* hton(OK_Msg* msg);
+OK_Msg* ntoh(OK_Msg* msg);
 Req_Msg* hton(Req_Msg* msg);
 Req_Msg* ntoh(Req_Msg* msg);
 join_msg* hton(join_msg* msg);

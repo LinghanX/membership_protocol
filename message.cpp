@@ -15,6 +15,15 @@ Req_Msg* ntoh(Req_Msg* msg) {
     msg -> operation = ntohl(msg -> operation);
     msg -> peer_id = ntohl(msg -> peer_id);
 };
+OK_Msg* hton(OK_Msg* msg) {
+    msg -> type = htonl(msg -> type);
+    msg -> peer_id = htonl(msg -> peer_id);
+    return msg;
+}
+OK_Msg* ntoh(OK_Msg* msg) {
+    msg -> peer_id = ntohl(msg -> peer_id);
+    return msg;
+}
 
 join_msg* hton(join_msg* msg) {
     msg -> type = htonl(msg -> type);

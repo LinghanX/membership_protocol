@@ -30,6 +30,7 @@ Process::Process(std::vector<std::string> &addr_book, std::string port) {
         curr_member.address = addr;
         curr_member.alive = false;
         curr_member.id = id;
+        curr_member.acknowledge = false;
 
         if (addr.compare(currHostName) == 0) {
             find_id = true;
@@ -66,7 +67,16 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-void Process::request_membership() {}
+void Process::request_membership() {
+    join_msg msg;
+    msg.type = 4;
+    msg.proc_id = this -> my_id;
+
+    join_msg* msg_to_send = hton(&msg);
+    send_msg(msg_to_send, this -> members[0].address, sizeof(join_msg));
+    this -> curr_state = process_state::MEMBER;
+}
+
 void Process::start_leader() {
     auto logger = spdlog::get("console");
     char buffer[1024];
@@ -142,6 +152,7 @@ void Process::start_leader() {
         if (recv_bytes > 0) {
             msg_type type = check_msg_type(buffer, recv_bytes);
 
+            close(new_fd); // dont need the connection anymore
             switch (type) {
                 case msg_type::join:
                 {
@@ -150,16 +161,32 @@ void Process::start_leader() {
                     msg.view_id = this ->view_id;
                     msg.type = OPERATION::ADD;
                     msg.peer_id = recved_msg -> proc_id;
-
+                    this -> members[this -> my_id].acknowledge = true;
                     broadcast_req_msg(&msg);
 
                     break;
                 }
+                case msg_type::ok:
+                {
+                    OK_Msg* recved_msg = ntoh((OK_Msg *) buffer);
+                    int id = recved_msg -> peer_id;
+                    this -> members[id].acknowledge = true;
+                    if (all_member_ack()) {
+                        init_new_view();
+                    }
+                    break;
+                }
             }
         }
-
-        close(new_fd);
     }
+}
+void Process::init_new_view() {}
+bool Process::all_member_ack() {
+    for (const auto &n : this -> members ) {
+        if (!n.alive) continue;
+        if (!n.acknowledge) return false;
+    }
+    return true;
 }
 void Process::broadcast_req_msg(Req_Msg* msg) {
     const auto logger = spdlog::get("console");
@@ -176,9 +203,50 @@ void Process::broadcast_req_msg(Req_Msg* msg) {
     }
 };
 void Process::send_msg(void *msg, std::string addr, ssize_t size) {
+    int sockfd, numbytes;
+    struct addrinfo hints, *servinfo, *p;
+    int rv;
+    char s[INET6_ADDRSTRLEN];
 
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if ((rv = getaddrinfo(addr.c_str(), this -> port.c_str(), &hints, &servinfo)) != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+    }
+
+    // loop through all the results and connect to the first we can
+    for(p = servinfo; p != NULL; p = p->ai_next) {
+        if ((sockfd = socket(p->ai_family, p->ai_socktype,
+                             p->ai_protocol)) == -1) {
+            perror("client: socket");
+            continue;
+        }
+
+        if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+            close(sockfd);
+            perror("client: connect");
+            continue;
+        }
+
+        break;
+    }
+
+    if (p == NULL) {
+        fprintf(stderr, "client: failed to connect\n");
+    }
+
+    inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),
+              s, sizeof s);
+    printf("client: connecting to %s\n", s);
+    freeaddrinfo(servinfo); // all done with this structure
+
+    if ((numbytes = send(sockfd, msg, size, 0)) == -1) {
+        perror("recv");
+    }
+    close(sockfd);
 }
-
 msg_type Process::check_msg_type(void *msg, ssize_t size) {
     const auto logger = spdlog::get("console");
     int *first_int = (int *) msg;
@@ -186,6 +254,8 @@ msg_type Process::check_msg_type(void *msg, ssize_t size) {
 
     if (size == sizeof(join_msg) && *first_int == 4) {
         return msg_type::join;
+    } else if (size == sizeof(OK_Msg) && *first_int == 1){
+        return msg_type::ok;
     } else {
         logger -> error("unable to identify incoming message");
         return msg_type::unknown;
@@ -207,6 +277,9 @@ void Process::init() {
                 break;
             case process_state::MEMBER:
                 idle();
+                break;
+            case process_state ::Waiting_ACK:
+                start_leader();
                 break;
             default:
                 logger -> error("unknown state");
