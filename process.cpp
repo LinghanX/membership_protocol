@@ -393,6 +393,14 @@ void Process::start_member() {
     inet_ntop(p -> ai_family, get_in_addr((struct sockaddr *) p -> ai_addr), s, sizeof(s));
     printf("client: connecting to %s\n", s);
 
+    join_msg msg;
+    msg.type = 4;
+    msg.proc_id = this -> my_id;
+
+    join_msg* msg_to_send = hton(&msg);
+    this -> curr_state = process_state::MEMBER;
+    if (send(sockfd, msg_to_send, sizeof(join_msg), 0) == -1)
+        logger -> error("error sending new view msg");
     freeaddrinfo(servinfo);
 
     while (true) {
