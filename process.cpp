@@ -196,6 +196,8 @@ void Process::start_leader() {
                                     update_view_msg.type = 2;
                                     update_view_msg.new_proc_id = this -> pending_member_id;
 
+                                    logger -> info("sending view msg: {}", update_view_msg.type);
+
                                     this -> pending_member_id = -1; // reset pending member id;
 
                                     new_view_msg* packged_msg = hton(&update_view_msg);
@@ -348,6 +350,8 @@ msg_type Process::check_msg_type(void *msg, ssize_t size) {
     const auto logger = spdlog::get("console");
     int *first_int = (int *) msg;
     *first_int = ntohl(*first_int);
+
+    logger -> info("msg type is: {}", first_int);
 
     if (size == sizeof(join_msg) && *first_int == 4) {
         return msg_type::join;
