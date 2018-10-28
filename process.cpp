@@ -197,6 +197,8 @@ void Process::start_leader() {
                                     update_view_msg.new_proc_id = this -> pending_member_id;
 
                                     logger -> info("sending view msg: {}", update_view_msg.type);
+                                    logger -> info("sending view msg: {}", update_view_msg.new_proc_id);
+                                    logger -> info("sending view msg: {}", update_view_msg.view_id);
 
                                     this -> pending_member_id = -1; // reset pending member id;
 
@@ -216,7 +218,7 @@ void Process::start_leader() {
 
                                     for (j = 0; j <= fdmax; j++) {
                                         if (FD_ISSET(j, &master)) {
-                                            if (j != listener && j != i) {
+                                            if (j != i) {
                                                 if (send(j, packaged, sizeof(Req_Msg), 0) == -1)
                                                     logger -> error("error sending");
                                             }
@@ -246,6 +248,7 @@ void Process::start_leader() {
                                     this -> pending_member_id = -1; // reset pending member id;
 
                                     new_view_msg* packged_msg = hton(&update_view_msg);
+
                                     for (j = 0; j <= fdmax; j++) {
                                         if (FD_ISSET(j, &master)) {
                                             if (j != listener && j != i) {
@@ -416,11 +419,10 @@ void Process::start_member() {
     freeaddrinfo(servinfo);
 
     while (true) {
-        if ( (numbytes = recv(sockfd, buf, 1024 - 1, 0)) == -1 ) {
+        if ( (numbytes = recv(sockfd, buf, 1024, 0)) == -1 ) {
             logger -> error("recv error");
         } else {
             logger -> info("receved message");
-            buf[numbytes] = '\0';
             // got message from a client
             msg_type type = check_msg_type(buf, numbytes);
             switch (type) {
