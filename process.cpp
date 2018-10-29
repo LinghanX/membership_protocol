@@ -206,7 +206,7 @@ void Process::start_leader() {
 
                                     for (j = 0; j <= fdmax; j++) {
                                         if (FD_ISSET(j, &master)) {
-                                            if (j != i) {
+                                            if (j != listener) {
                                                 logger -> info("sending new view message");
                                                 logger -> info("size is: {}", sizeof(update_view_msg));
                                                 if (send(j, packged_msg, sizeof(new_view_msg), 0) == -1)
@@ -219,7 +219,7 @@ void Process::start_leader() {
 
                                     for (j = 0; j <= fdmax; j++) {
                                         if (FD_ISSET(j, &master)) {
-                                            if (j != i) {
+                                            if (j != listener) {
                                                 if (send(j, packaged, sizeof(Req_Msg), 0) == -1)
                                                     logger -> error("error sending");
                                             }
@@ -252,7 +252,7 @@ void Process::start_leader() {
 
                                     for (j = 0; j <= fdmax; j++) {
                                         if (FD_ISSET(j, &master)) {
-                                            if (j != listener && j != i) {
+                                            if (j != listener) {
                                                 if (send(j, packged_msg, sizeof(new_view_msg), 0) == -1)
                                                     logger -> error("error sending new view msg");
                                             }
@@ -420,8 +420,10 @@ void Process::start_member() {
     freeaddrinfo(servinfo);
 
     while (true) {
+        logger -> info("listening");
         if ( (numbytes = recv(sockfd, buf, 1024, 0)) <= 0 ) {
-            logger -> error("recv error");
+            if (numbytes == 0) logger -> error("server hung up");
+            else logger -> error("recv error");
         } else {
             logger -> info("receved message {}", numbytes);
             // got message from a client
@@ -450,6 +452,8 @@ void Process::start_member() {
                 }
             }
         }
+
+        sleep(1);
     }
 }
 void Process::init() {
