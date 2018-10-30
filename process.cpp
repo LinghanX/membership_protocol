@@ -134,7 +134,7 @@ void Process::start_leader() {
 
     fdmax = listener;
 
-    logger -> info("start listenning");
+    logger -> info("start listening");
 
     while (true) {
         read_fds = master;
@@ -143,7 +143,7 @@ void Process::start_leader() {
 
         for (i = 0; i <= fdmax; i++) {
             if (FD_ISSET(i, &read_fds)) {
-                if (i == listener) {
+                if (i == listener) { // new connection request coming
                     addrlen = sizeof (remoteaddr);
                     newfd = accept(listener, (struct sockaddr *) &remoteaddr, &addrlen);
 
@@ -219,7 +219,9 @@ void Process::start_leader() {
 
                                     for (j = 0; j <= fdmax; j++) {
                                         if (FD_ISSET(j, &master)) {
-                                            if (j != listener) {
+                                            // we dont want to send to ourself and the process that
+                                            // requested to join
+                                            if (j != listener && j != i) {
                                                 if (send(j, packaged, sizeof(Req_Msg), 0) == -1)
                                                     logger -> error("error sending");
                                             }
@@ -411,7 +413,9 @@ void Process::start_member() {
     join_msg msg;
     msg.type = 4;
     msg.proc_id = this -> my_id;
+    this -> members[this -> leader_id].alive = true; // set the leader to be alive
 
+    // ask to join the group
     join_msg* msg_to_send = hton(&msg);
     this -> curr_state = process_state::MEMBER;
     if (send(sockfd, msg_to_send, sizeof(join_msg), 0) == -1)
