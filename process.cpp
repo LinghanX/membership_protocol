@@ -301,20 +301,15 @@ void *Process::start_udp_listen(void *proc) {
     auto self = (Process *) proc;
 
     while (true) {
-        sleep(5);
+        sleep(2);
 
         for (auto &n: self -> members) {
             if (n.id == self -> my_id) continue;
             int sender_id = recv_msg(n.address, self);
             auto curr = std::chrono::high_resolution_clock::now();
-            if (sender_id < 0) { // no message received;
-                if (std::chrono::duration_cast<std::chrono::seconds>(curr - n.last_heartbeat_received).count() > 10) {
-                    logger -> critical("process: {} is offline", n.id);
-                } else {
-                    logger -> info("else");
-                }
-            } else {
-                n.last_heartbeat_received = curr;
+            if (sender_id == n.id) n.last_heartbeat_received = curr;
+            if (n.alive && std::chrono::duration_cast<std::chrono::seconds>(curr - n.last_heartbeat_received).count() > 10) {
+                logger -> critical("Peer: {} not reachable", n.id);
             }
         }
     }
@@ -389,7 +384,7 @@ void *Process::start_udp_send(void *proc) {
     auto self = (Process *) proc;
 
     while (true) {
-        sleep(5);
+        sleep(2);
 
         for (const auto &n : self -> members) {
             if (n.id == self -> my_id) continue;
