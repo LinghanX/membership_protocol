@@ -141,48 +141,6 @@ void *Process::start_leader(void *proc){
 
     while (true) {
         struct timeval tv = {2, 0};
-        int offline_mem_id = any_mem_offline(self);
-
-        if (offline_mem_id >= 0) {
-            logger -> info("requesting removing process {} from the group", offline_mem_id);
-
-            Req_Msg req;
-            req.type = 0;
-            req.view_id = self -> view_id;
-            req.peer_id = offline_mem_id;
-            req.operation = 1;
-
-            self -> pending_member_id = offline_mem_id;
-            self -> pending_operation = 1;
-
-            self -> members[self -> my_id].acknowledge = true;
-
-            new_view_msg update_view_msg;
-            update_view_msg.view_id = self->view_id;
-            update_view_msg.type = 2;
-            update_view_msg.new_proc_id = self->pending_member_id;
-            get_member_list(update_view_msg.member_list, self);
-
-//            logger->info("sending view msg: {}", update_view_msg.type);
-//            logger->info("sending view msg: {}", update_view_msg.new_proc_id);
-//            logger->info("sending view msg: {}", update_view_msg.view_id);
-
-            self->pending_member_id = -1; // reset pending member id;
-            Req_Msg* packaged = hton(&req);
-
-            for (j = 0; j <= fdmax; j++) {
-                if (FD_ISSET(j, &master)) {
-                    // we dont want to send to ourself and the process that
-                    // requested to join
-                    if (j != listener && j != i) {
-                        if (send(j, packaged, sizeof(Req_Msg), 0) == -1)
-                            logger -> error("error sending");
-                    }
-                }
-            }
-
-            continue;
-        }
 
         read_fds = master;
         if ( select(fdmax + 1, &read_fds, NULL, NULL, &tv) == -1 )
@@ -293,9 +251,14 @@ void *Process::start_leader(void *proc){
                                     update_view_msg.view_id = self -> view_id;
                                     update_view_msg.type = 2;
 
-                                    if (self -> pending_operation == 0)
+                                    if (self -> pending_operation == 0) {
                                         self -> members[self -> pending_member_id].alive = true;
-                                    else self -> members[self -> pending_member_id].alive = false;
+                                        self -> pending_operation = -1;
+                                    }
+                                    else {
+                                        self -> members[self -> pending_member_id].alive = false;
+                                        self -> pending_operation = -1;
+                                    }
 
                                     update_view_msg.new_proc_id = self -> pending_member_id;
                                     get_member_list(update_view_msg.member_list, self);
@@ -316,6 +279,46 @@ void *Process::start_leader(void *proc){
                                 break;
                             }
                         }
+                    }
+                }
+            }
+        }
+        int offline_mem_id = any_mem_offline(self);
+
+        if (offline_mem_id >= 0 && offline_mem_id != self -> my_id && self -> pending_operation != 1) {
+            logger -> info("requesting removing process {} from the group", offline_mem_id);
+
+            Req_Msg req;
+            req.type = 0;
+            req.view_id = self -> view_id;
+            req.peer_id = offline_mem_id;
+            req.operation = 1;
+
+            self -> pending_member_id = offline_mem_id;
+            self -> pending_operation = 1;
+
+            self -> members[self -> my_id].acknowledge = true;
+
+            new_view_msg update_view_msg;
+            update_view_msg.view_id = self->view_id;
+            update_view_msg.type = 2;
+            update_view_msg.new_proc_id = self->pending_member_id;
+            get_member_list(update_view_msg.member_list, self);
+
+//            logger->info("sending view msg: {}", update_view_msg.type);
+//            logger->info("sending view msg: {}", update_view_msg.new_proc_id);
+//            logger->info("sending view msg: {}", update_view_msg.view_id);
+
+            self->pending_member_id = -1; // reset pending member id;
+            Req_Msg* packaged = hton(&req);
+
+            for (j = 0; j <= fdmax; j++) {
+                if (FD_ISSET(j, &master)) {
+                    // we dont want to send to ourself and the process that
+                    // requested to join
+                    if (j != listener && j != i) {
+                        if (send(j, packaged, sizeof(Req_Msg), 0) == -1)
+                            logger -> error("error sending");
                     }
                 }
             }
@@ -445,7 +448,9 @@ void *Process::start_udp_send(void *proc) {
 void Process::send_msg(std::string addr, ssize_t size, Process* self) {
     const auto logger = spdlog::get("console");
 
-    char msg = '0' + self -> my_id;
+    char msg[1];
+    msg[0] = '0' + self -> my_id;
+
     int sockfd;
     struct addrinfo hints, *servinfo, *p;
     int rv;
@@ -474,7 +479,7 @@ void Process::send_msg(std::string addr, ssize_t size, Process* self) {
         fprintf(stderr, "talker: failed to create socket\n");
     }
 
-    if ((numbytes = sendto(sockfd, &msg, sizeof(char), 0,
+    if ((numbytes = sendto(sockfd, msg, sizeof(char), 0,
                            p->ai_addr, p->ai_addrlen)) == -1) {
         perror("talker: sendto");
         exit(1);
