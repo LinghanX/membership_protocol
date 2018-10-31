@@ -134,9 +134,12 @@ void Process::start_leader() {
 
     fdmax = listener;
 
-    logger -> info("start listening");
-
     while (true) {
+        logger -> info("listening, view is: {}", this -> view_id);
+        for (const auto &n : this -> members) {
+            if (n.alive) logger -> info("{} is alive", n.address);
+        }
+
         read_fds = master;
         if ( select(fdmax + 1, &read_fds, NULL, NULL, NULL) == -1 )
             logger -> error("unable to select");
@@ -433,7 +436,10 @@ void Process::start_member() {
     freeaddrinfo(servinfo);
 
     while (true) {
-        logger -> info("listening");
+        logger -> info("listening, view is: {}", this -> view_id);
+        for (const auto &n : this -> members) {
+            if (n.alive) logger -> info("{} is alive", n.address);
+        }
         if ( (numbytes = recv(sockfd, buf, 1024, 0)) <= 0 ) {
             if (numbytes == 0) logger -> error("server hung up");
             else logger -> error("recv error");
