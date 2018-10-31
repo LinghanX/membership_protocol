@@ -286,6 +286,7 @@ void *Process::start_leader(void *proc){
         int offline_mem_id = any_mem_offline(self);
 
         if (offline_mem_id >= 0 && offline_mem_id != self -> my_id && self -> pending_operation != 1) {
+            logger -> critical("Peer {} not reachable", offline_mem_id);
             logger -> info("requesting removing process {} from the group", offline_mem_id);
 
             Req_Msg req;
@@ -350,7 +351,7 @@ void *Process::start_udp_listen(void *proc) {
             int sender_id = recv_msg(n.address, self);
             auto curr = std::chrono::high_resolution_clock::now();
             if (sender_id == n.id) {
-                logger -> info("refreshing proc: {}'s heartbeat", sender_id);
+//                logger -> info("refreshing proc: {}'s heartbeat", sender_id);
                 n.last_heartbeat_received = curr;
             }
             if (n.alive && std::chrono::duration_cast<std::chrono::seconds>(curr - n.last_heartbeat_received).count() > 10) {
@@ -403,7 +404,7 @@ int Process::recv_msg(std::string addr, Process * self) {
 
     freeaddrinfo(servinfo);
 
-    printf("listener: waiting to recvfrom...\n");
+//    printf("listener: waiting to recvfrom...\n");
 
     addr_len = sizeof their_addr;
     if ((numbytes = recvfrom(sockfd, buf, 1024-1 , 0,
