@@ -46,6 +46,7 @@ Process::Process(std::vector<std::string> &addr_book, std::string port) {
 
     this -> port = std::move(port);
     this -> udp_port = "22222";
+    this -> pending_operation = -1;
     this -> view_id = 0;
     this -> addr_book = addr_book;
     this -> pending_member_id = -1;
@@ -64,6 +65,16 @@ Process::Process(std::vector<std::string> &addr_book, std::string port) {
 //        logger -> info("member {} is: {}, addr is: {}", n.id, n.alive, n.address);
 //    }
     init();
+}
+int Process::any_mem_offline(Process *self) {
+    int id = -1;
+    auto curr = std::chrono::high_resolution_clock::now();
+    for (const auto &n : self->members) {
+        if (n.alive && std::chrono::duration_cast<std::chrono::seconds>(curr - n.last_heartbeat_received).count() > 10) {
+            id = n.id;
+        }
+    }
+    return id;
 }
 void *get_in_addr(struct sockaddr *sa) {
     if (sa->sa_family == AF_INET) {
@@ -129,13 +140,52 @@ void *Process::start_leader(void *proc){
     fdmax = listener;
 
     while (true) {
-//        logger -> info("listening, view is: {}", this -> view_id);
-//        for (const auto &n : this -> members) {
-//            if (n.alive) logger -> info("{} is alive", n.address);
-//        }
+        struct timeval tv = {2, 0};
+        int offline_mem_id = any_mem_offline(self);
+
+        if (offline_mem_id >= 0) {
+            logger -> info("requesting removing process {} from the group", offline_mem_id);
+
+            Req_Msg req;
+            req.type = 0;
+            req.view_id = self -> view_id;
+            req.peer_id = offline_mem_id;
+            req.operation = 1;
+
+            self -> pending_member_id = offline_mem_id;
+            self -> pending_operation = 1;
+
+            self -> members[self -> my_id].acknowledge = true;
+
+            new_view_msg update_view_msg;
+            update_view_msg.view_id = self->view_id;
+            update_view_msg.type = 2;
+            update_view_msg.new_proc_id = self->pending_member_id;
+            get_member_list(update_view_msg.member_list, self);
+
+//            logger->info("sending view msg: {}", update_view_msg.type);
+//            logger->info("sending view msg: {}", update_view_msg.new_proc_id);
+//            logger->info("sending view msg: {}", update_view_msg.view_id);
+
+            self->pending_member_id = -1; // reset pending member id;
+            Req_Msg* packaged = hton(&req);
+
+            for (j = 0; j <= fdmax; j++) {
+                if (FD_ISSET(j, &master)) {
+                    // we dont want to send to ourself and the process that
+                    // requested to join
+                    if (j != listener && j != i) {
+                        if (send(j, packaged, sizeof(Req_Msg), 0) == -1)
+                            logger -> error("error sending");
+                    }
+                }
+            }
+
+            continue;
+        }
 
         read_fds = master;
-        if ( select(fdmax + 1, &read_fds, NULL, NULL, NULL) == -1 )
+        if ( select(fdmax + 1, &read_fds, NULL, NULL, &tv) == -1 )
             logger -> error("unable to select");
 
         for (i = 0; i <= fdmax; i++) {
@@ -179,6 +229,7 @@ void *Process::start_leader(void *proc){
                                 req.operation = 0;
 
                                 self -> pending_member_id = recved_msg -> proc_id;
+                                self -> pending_operation = 0;
                                 self -> members[self -> my_id].acknowledge = true;
 
                                 if (all_member_ack(self)) {
@@ -237,22 +288,21 @@ void *Process::start_leader(void *proc){
                                 self -> members[peer_id].acknowledge = true;
 
                                 if (all_member_ack(self)) {
-                                    self -> curr_state = process_state::LEADER;
                                     self -> view_id += 1;
-
-                                    self -> members[self -> pending_member_id].alive = true;
-
                                     new_view_msg update_view_msg;
                                     update_view_msg.view_id = self -> view_id;
                                     update_view_msg.type = 2;
+
+                                    if (self -> pending_operation == 0)
+                                        self -> members[self -> pending_member_id].alive = true;
+                                    else self -> members[self -> pending_member_id].alive = false;
+
                                     update_view_msg.new_proc_id = self -> pending_member_id;
                                     get_member_list(update_view_msg.member_list, self);
-
-                                    self -> pending_member_id = -1; // reset pending member id;
                                     bring_proc_online(update_view_msg.member_list, self);
+                                    self -> pending_member_id = -1;
 
                                     new_view_msg* packged_msg = hton(&update_view_msg);
-
                                     for (j = 0; j <= fdmax; j++) {
                                         if (FD_ISSET(j, &master)) {
                                             if (j != listener) {
@@ -291,7 +341,7 @@ void Process::bring_proc_online(char* proc_id, Process* self) {
 }
 bool Process::all_member_ack(Process* self) {
     for (const auto &n : self -> members ) {
-        if (!n.alive) continue;
+        if (!n.alive || n.id == self->my_id) continue;
         if (!n.acknowledge) return false;
     }
     return true;
@@ -454,8 +504,6 @@ msg_type Process::check_msg_type(void *msg, ssize_t size) {
         logger -> error("unable to identify incoming message");
         return msg_type::unknown;
     }
-}
-void *Process::tcp_member_listen(void *) {
 }
 void *Process::start_member(void * member) {
     const auto logger = spdlog::get("console");

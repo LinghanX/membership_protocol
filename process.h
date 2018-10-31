@@ -16,7 +16,9 @@ enum process_state {
     LEADER,
     MEMBER,
     NON_MEMBER,
-    Waiting_ACK
+    Waiting_ACK,
+    DELETING,
+    JOINING
 };
 struct member_stat {
     int id;
@@ -45,6 +47,7 @@ public:
     std::vector<member_stat> members;
     int view_id;
     std::string udp_port;
+    int pending_operation; // 0 is add, 1 is delete
 
     int pending_member_id;
     int leader_id;
@@ -61,6 +64,7 @@ public:
     static void * start_udp_send(void *);
     static void send_msg(std::string, ssize_t, Process*);
     static int recv_msg(std::string, Process*);
+    static int any_mem_offline(Process* self);
     Process(std::vector<std::string> &, std::string);
     void init();
 };
