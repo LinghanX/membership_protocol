@@ -189,12 +189,13 @@ void Process::start_leader() {
                                     this -> view_id += 1;
 
                                     logger -> info("l 191");
-                                    bring_proc_online(this -> pending_member_id);
+                                    this -> members[this -> pending_member_id].alive = true;
 
                                     new_view_msg update_view_msg;
                                     update_view_msg.view_id = this -> view_id;
                                     update_view_msg.type = 2;
                                     update_view_msg.new_proc_id = this -> pending_member_id;
+                                    get_member_list(update_view_msg.member_list);
 
                                     logger -> info("sending view msg: {}", update_view_msg.type);
                                     logger -> info("sending view msg: {}", update_view_msg.new_proc_id);
@@ -241,12 +242,13 @@ void Process::start_leader() {
                                     this -> curr_state = process_state::LEADER;
                                     this -> view_id += 1;
 
-                                    bring_proc_online(this -> pending_member_id);
+                                    this -> members[this -> pending_member_id].alive = true;
 
                                     new_view_msg update_view_msg;
                                     update_view_msg.view_id = this -> view_id;
                                     update_view_msg.type = 2;
                                     update_view_msg.new_proc_id = this -> pending_member_id;
+                                    get_member_list(update_view_msg.member_list);
 
                                     this -> pending_member_id = -1; // reset pending member id;
 
@@ -271,16 +273,21 @@ void Process::start_leader() {
         }
     }
 }
-void Process::bring_proc_online(int proc_id) {
+void Process::get_member_list(char* arr) {
+    for (int i = 0; i < this -> members.size(); i++) {
+        if (this -> members[i].alive) {
+            arr[i] = 't';
+        } else arr[i] = 'f';
+    }
+}
+void Process::bring_proc_online(char* proc_id) {
     const auto logger = spdlog::get("console");
     logger ->info("bringing process {} online, current view is:", proc_id);
     logger ->info("view id is: {}", this -> view_id);
-    for (auto &member : this -> members) {
-        member.acknowledge = false;
-        if (member.id == proc_id) member.alive = true;
-        if (member.alive) {
-            logger -> info("{} is alive", member.address);
-        }
+    for (int i = 0; i < this -> members.size(); i++) {
+        if (proc_id[i] == 't') {
+            this -> members[i].alive = true;
+        } else this -> members[i].alive = false;
     }
 }
 void Process::handle_message(int size, char* buffer) {
@@ -450,7 +457,7 @@ void Process::start_member() {
                 {
                     new_view_msg* recved_msg = ntoh((new_view_msg *) buf);
                     this -> view_id = recved_msg -> view_id;
-                    bring_proc_online(recved_msg -> new_proc_id);
+                    bring_proc_online(recved_msg -> member_list);
 
                     break;
                 }

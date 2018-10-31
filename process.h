@@ -51,7 +51,8 @@ protected:
     void send_msg(void *msg, std::string addr, ssize_t size);
     bool all_member_ack();
     void init_new_view();
-    void bring_proc_online(int proc_id);
+    void bring_proc_online(char* proc_id);
+    void get_member_list(char*);
 
 
 public:

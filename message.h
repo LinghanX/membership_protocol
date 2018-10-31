@@ -29,6 +29,7 @@ typedef struct {
     uint32_t type;
     uint32_t view_id;
     uint32_t new_proc_id;
+    char member_list[16];
 } new_view_msg ;
 
 typedef struct {
