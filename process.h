@@ -60,7 +60,7 @@ public:
     static void * start_udp_listen(void *);
     static void * start_udp_send(void *);
     static void send_msg(std::string, ssize_t, Process*);
-    static void recv_msg(std::string, Process*);
+    static int recv_msg(std::string, Process*);
     Process(std::vector<std::string> &, std::string);
     void init();
 };

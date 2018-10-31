@@ -297,18 +297,27 @@ bool Process::all_member_ack(Process* self) {
     return true;
 }
 void *Process::start_udp_listen(void *proc) {
+    const auto logger = spdlog::get("console");
     auto self = (Process *) proc;
 
     while (true) {
         sleep(5);
 
-        for (const auto &n: self -> members) {
+        for (auto &n: self -> members) {
             if (n.id == self -> my_id) continue;
-            recv_msg(n.address, self);
+            int sender_id = recv_msg(n.address, self);
+            auto curr = std::chrono::high_resolution_clock::now();
+            if (sender_id < 0) { // no message received;
+                if (std::chrono::duration_cast<std::chrono::seconds>(curr - n.last_heartbeat_received).count() > 10) {
+                    logger -> critical("process: {} is offline", n.id);
+                }
+            } else {
+                n.last_heartbeat_received = curr;
+            }
         }
     }
 }
-void Process::recv_msg(std::string addr, Process * self) {
+int Process::recv_msg(std::string addr, Process * self) {
     const auto logger = spdlog::get("console");
 
     int sockfd;
@@ -359,7 +368,10 @@ void Process::recv_msg(std::string addr, Process * self) {
                              (struct sockaddr *)&their_addr, &addr_len)) == -1) {
         perror("recvfrom");
     }
-    int sender_id = ((char *) buf)[0] - '0';
+
+    int sender_id;
+    if (numbytes > 0) sender_id = ((char *) buf)[0] - '0';
+    else sender_id = -1;
 
     printf("listener: got packet from %s\n",
            inet_ntop(their_addr.ss_family,
@@ -369,6 +381,7 @@ void Process::recv_msg(std::string addr, Process * self) {
     printf("listener: packet id is: %d\n", sender_id);
 
     close(sockfd);
+    return sender_id;
 }
 void *Process::start_udp_send(void *proc) {
     auto self = (Process *) proc;
