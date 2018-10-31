@@ -299,17 +299,6 @@ void *Process::start_leader(void *proc){
 
             self -> members[self -> my_id].acknowledge = true;
 
-            new_view_msg update_view_msg;
-            update_view_msg.view_id = self->view_id;
-            update_view_msg.type = 2;
-            update_view_msg.new_proc_id = self->pending_member_id;
-            get_member_list(update_view_msg.member_list, self);
-
-//            logger->info("sending view msg: {}", update_view_msg.type);
-//            logger->info("sending view msg: {}", update_view_msg.new_proc_id);
-//            logger->info("sending view msg: {}", update_view_msg.view_id);
-
-            self->pending_member_id = -1; // reset pending member id;
             Req_Msg* packaged = hton(&req);
 
             for (j = 0; j <= fdmax; j++) {
@@ -423,12 +412,12 @@ int Process::recv_msg(std::string addr, Process * self) {
     if (numbytes > 0) sender_id = ((char *) buf)[0] - '0';
     else sender_id = -1;
 
-    printf("listener: got packet from %s\n",
-           inet_ntop(their_addr.ss_family,
-                     get_in_addr((struct sockaddr *)&their_addr),
-                     s, sizeof s));
-    printf("listener: packet is %d bytes long\n", numbytes);
-    printf("listener: packet id is: %d\n", sender_id);
+//    printf("listener: got packet from %s\n",
+//           inet_ntop(their_addr.ss_family,
+//                     get_in_addr((struct sockaddr *)&their_addr),
+//                     s, sizeof s));
+//    printf("listener: packet is %d bytes long\n", numbytes);
+//    printf("listener: packet id is: %d\n", sender_id);
 
     close(sockfd);
     return sender_id;
@@ -577,6 +566,8 @@ void *Process::start_member(void * member) {
             switch (type) {
                 case msg_type::req:
                 {
+                    Req_Msg* req_msg = ntoh((Req_Msg*) buf);
+
                     OK_Msg ok_msg;
                     ok_msg.type = 1;
                     ok_msg.peer_id = self -> my_id;
