@@ -316,7 +316,7 @@ void Process::recv_msg(std::string addr, Process * self) {
     int rv;
     int numbytes;
     struct sockaddr_storage their_addr;
-    char buf[1024];
+    char buf[2];
     socklen_t addr_len;
     char s[INET6_ADDRSTRLEN];
 
@@ -359,14 +359,14 @@ void Process::recv_msg(std::string addr, Process * self) {
                              (struct sockaddr *)&their_addr, &addr_len)) == -1) {
         perror("recvfrom");
     }
+    int sender_id = ((char *) buf)[0];
 
     printf("listener: got packet from %s\n",
            inet_ntop(their_addr.ss_family,
                      get_in_addr((struct sockaddr *)&their_addr),
                      s, sizeof s));
     printf("listener: packet is %d bytes long\n", numbytes);
-    buf[numbytes] = '\0';
-    printf("listener: packet contains \"%s\"\n", buf);
+    printf("listener: packet id is: %d\n", sender_id);
 
     close(sockfd);
 }
@@ -385,6 +385,7 @@ void *Process::start_udp_send(void *proc) {
 void Process::send_msg(std::string addr, ssize_t size, Process* self) {
     const auto logger = spdlog::get("console");
 
+    char msg = '0' + self -> my_id;
     int sockfd;
     struct addrinfo hints, *servinfo, *p;
     int rv;
@@ -413,7 +414,7 @@ void Process::send_msg(std::string addr, ssize_t size, Process* self) {
         fprintf(stderr, "talker: failed to create socket\n");
     }
 
-    if ((numbytes = sendto(sockfd, &self -> my_id, sizeof(self -> my_id), 0,
+    if ((numbytes = sendto(sockfd, &msg, sizeof(char), 0,
                            p->ai_addr, p->ai_addrlen)) == -1) {
         perror("talker: sendto");
         exit(1);
@@ -421,10 +422,9 @@ void Process::send_msg(std::string addr, ssize_t size, Process* self) {
 
     freeaddrinfo(servinfo);
 
-    printf("talker: sent %d bytes to %s\n", numbytes, &addr);
+    printf("talker: sent %d bytes to %s\n", numbytes, addr.c_str());
     close(sockfd);
 }
-
 msg_type Process::check_msg_type(void *msg, ssize_t size) {
     const auto logger = spdlog::get("console");
     int *first_int = (int *) msg;
