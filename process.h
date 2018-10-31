@@ -42,7 +42,6 @@ protected:
 public:
     int my_id;
     std::string port;
-    std::vector<std::string> addr_book;
     process_state curr_state;
     std::vector<member_stat> members;
     int view_id;
@@ -51,10 +50,7 @@ public:
 
     int pending_member_id;
     int leader_id;
-    void request_membership();
-    static void *tcp_member_listen(void *);
     static msg_type check_msg_type(void* msg, ssize_t size);
-    void broadcast_heartbeat(Req_Msg *);
     static bool all_member_ack(Process *);
     static void bring_proc_online(char* proc_id, Process*);
     static void get_member_list(char*, Process* proc);
@@ -62,7 +58,7 @@ public:
     static void * start_member(void *);
     static void * start_udp_listen(void *);
     static void * start_udp_send(void *);
-    static void send_msg(std::string, ssize_t, Process*);
+    static void send_msg(std::string, Process*);
     static int recv_msg(std::string, Process*);
     static int any_mem_offline(Process* self);
     Process(std::vector<std::string> &, std::string);

@@ -48,7 +48,6 @@ Process::Process(std::vector<std::string> &addr_book, std::string port) {
     this -> udp_port = "22222";
     this -> pending_operation = -1;
     this -> view_id = 0;
-    this -> addr_book = addr_book;
     this -> pending_member_id = -1;
     this -> leader_id = 0;
     this -> curr_state = this -> my_id == 0
@@ -57,14 +56,6 @@ Process::Process(std::vector<std::string> &addr_book, std::string port) {
     logger -> info("my id is: {}", this -> my_id);
     logger -> info("my leader is: {}", this -> leader_id);
     logger -> info("my state is: {}", this -> curr_state);
-
-//    logger -> info("finished processing args");
-//    logger -> info("I am a {}", this -> curr_state);
-//
-//    for (const auto& n : this -> members) {
-//        logger -> info("member {} is: {}, addr is: {}", n.id, n.alive, n.address);
-//    }
-    init();
 }
 int Process::any_mem_offline(Process *self) {
     int id = -1;
@@ -351,7 +342,6 @@ void *Process::start_udp_listen(void *proc) {
             int sender_id = recv_msg(n.address, self);
             auto curr = std::chrono::high_resolution_clock::now();
             if (sender_id == n.id) {
-//                logger -> info("refreshing proc: {}'s heartbeat", sender_id);
                 n.last_heartbeat_received = curr;
             }
             if (n.alive && std::chrono::duration_cast<std::chrono::seconds>(curr - n.last_heartbeat_received).count() > 10) {
@@ -404,8 +394,6 @@ int Process::recv_msg(std::string addr, Process * self) {
 
     freeaddrinfo(servinfo);
 
-//    printf("listener: waiting to recvfrom...\n");
-
     addr_len = sizeof their_addr;
     if ((numbytes = recvfrom(sockfd, buf, 1024-1 , 0,
                              (struct sockaddr *)&their_addr, &addr_len)) == -1) {
@@ -415,13 +403,6 @@ int Process::recv_msg(std::string addr, Process * self) {
     int sender_id;
     if (numbytes > 0) sender_id = ((char *) buf)[0] - '0';
     else sender_id = -1;
-
-//    printf("listener: got packet from %s\n",
-//           inet_ntop(their_addr.ss_family,
-//                     get_in_addr((struct sockaddr *)&their_addr),
-//                     s, sizeof s));
-//    printf("listener: packet is %d bytes long\n", numbytes);
-//    printf("listener: packet id is: %d\n", sender_id);
 
     close(sockfd);
     return sender_id;
@@ -434,11 +415,11 @@ void *Process::start_udp_send(void *proc) {
 
         for (const auto &n : self -> members) {
             if (n.id == self -> my_id) continue;
-            send_msg(n.address, sizeof(int), self);
+            send_msg(n.address, self);
         }
     }
 }
-void Process::send_msg(std::string addr, ssize_t size, Process* self) {
+void Process::send_msg(std::string addr, Process* self) {
     const auto logger = spdlog::get("console");
 
     char msg[1];
@@ -480,15 +461,12 @@ void Process::send_msg(std::string addr, ssize_t size, Process* self) {
 
     freeaddrinfo(servinfo);
 
-//    printf("talker: sent %d bytes to %s\n", numbytes, addr.c_str());
     close(sockfd);
 }
 msg_type Process::check_msg_type(void *msg, ssize_t size) {
     const auto logger = spdlog::get("console");
     int *first_int = (int *) msg;
     *first_int = ntohl(*first_int);
-
-    logger -> info("msg type is: {}", *first_int);
 
     if (size == sizeof(join_msg) && *first_int == 4) {
         return msg_type::join;
@@ -556,10 +534,6 @@ void *Process::start_member(void * member) {
     freeaddrinfo(servinfo);
 
     while (true) {
-//        logger -> info("listening, view is: {}", this -> view_id);
-//        for (const auto &n : this -> members) {
-//            if (n.alive) logger -> info("{} is alive", n.address);
-//        }
         if ( (numbytes = recv(sockfd, buf, 1024, 0)) <= 0 ) {
             if (numbytes == 0) logger -> error("server hung up");
             else logger -> error("recv error");
@@ -596,6 +570,4 @@ void *Process::start_member(void * member) {
 
         sleep(1);
     }
-}
-void Process::init() {
 }
