@@ -41,6 +41,11 @@ typedef struct {
     uint32_t proc_id;
 } join_msg ;
 
+typedef struct {
+    uint32_t type;
+    uint32_t proc_id;
+} heartbeat_msg;
+
 new_view_msg* hton(new_view_msg* msg);
 new_view_msg* ntoh(new_view_msg* msg);
 OK_Msg* hton(OK_Msg* msg);

@@ -47,3 +47,15 @@ process k to be alive. otherwise we treat it as offline.
     2) when a connection is established, it sends a join message
        to the leader.
     3) the leader then broadcast message to all  
+
+## fail detector
+
+Every 5 secs, the process will send a heartbeat message to all 
+processes in the address list. Message will only be one int long,
+which will be the id of the sender. 
+
+Each Member struct will have a field 'has_received_heartbeat'; which
+is initiated as true; 
+
+Every 5 secs, the process will check status. if the `has_received_hearbeat`
+is true, set it to false. If it is false, then report the process as offline.

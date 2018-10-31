@@ -3,6 +3,7 @@
 #include "include/spdlog/sinks/stdout_color_sinks.h"
 #include "parse.h"
 #include "process.h"
+#include <pthread.h>
 
 int main(int argc, char **argv) {
     auto console = spdlog::stdout_color_mt("console");
@@ -13,7 +14,18 @@ int main(int argc, char **argv) {
 
     std::tie(addr_book, port) = handle_input(argc, argv);
     Process *process = new Process(addr_book, port);
-    process -> init();
+
+    auto logger = spdlog::get("console");
+
+    int rc1, rc2, rc3;
+    pthread_t tcp_thread, udp_listen_thread, udp_send_thread;
+    if (process -> my_id == process -> leader_id) {
+        if ( rc1 = pthread_create(&tcp_thread, NULL, &Process::start_leader, process) ) {
+        }
+    } else {
+        if ( rc1 = pthread_create(&tcp_thread, NULL, &Process::start_member, process)) {}
+    }
+    pthread_join(tcp_thread, NULL);
 
     return 0;
 }

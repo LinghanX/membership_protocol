@@ -79,7 +79,8 @@ void Process::request_membership() {
     send_msg(msg_to_send, this -> members[0].address, sizeof(join_msg));
     this -> curr_state = process_state::MEMBER;
 }
-void Process::start_leader() {
+void *Process::start_leader(void *proc){
+    auto self = (Process *) proc;
     auto logger = spdlog::get("console");
     fd_set master;
     fd_set read_fds;
@@ -107,7 +108,7 @@ void Process::start_leader() {
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
-    if ( (rv = getaddrinfo(NULL, this -> port.c_str(), &hints, &ai)) != 0 )
+    if ( (rv = getaddrinfo(NULL, self -> port.c_str(), &hints, &ai)) != 0 )
         logger -> error("unable to get addr");
 
     for (p = ai; p != NULL; p = p -> ai_next) {
@@ -135,10 +136,10 @@ void Process::start_leader() {
     fdmax = listener;
 
     while (true) {
-        logger -> info("listening, view is: {}", this -> view_id);
-        for (const auto &n : this -> members) {
-            if (n.alive) logger -> info("{} is alive", n.address);
-        }
+//        logger -> info("listening, view is: {}", this -> view_id);
+//        for (const auto &n : this -> members) {
+//            if (n.alive) logger -> info("{} is alive", n.address);
+//        }
 
         read_fds = master;
         if ( select(fdmax + 1, &read_fds, NULL, NULL, NULL) == -1 )
@@ -180,32 +181,32 @@ void Process::start_leader() {
                                 join_msg* recved_msg = ntoh((join_msg *) buf);
                                 Req_Msg req;
                                 req.type = 0;
-                                req.view_id = this -> view_id;
+                                req.view_id = self -> view_id;
                                 req.peer_id = recved_msg -> proc_id;
                                 req.operation = 0;
 
-                                this -> pending_member_id = recved_msg -> proc_id;
-                                this -> members[this -> my_id].acknowledge = true;
+                                self -> pending_member_id = recved_msg -> proc_id;
+                                self -> members[self -> my_id].acknowledge = true;
 
-                                if (all_member_ack()) {
-                                    this -> curr_state = process_state::LEADER;
-                                    this -> view_id += 1;
+                                if (all_member_ack(self)) {
+                                    self -> curr_state = process_state::LEADER;
+                                    self -> view_id += 1;
 
-                                    this -> members[this -> pending_member_id].alive = true;
+                                    self -> members[self -> pending_member_id].alive = true;
 
                                     new_view_msg update_view_msg;
-                                    update_view_msg.view_id = this -> view_id;
+                                    update_view_msg.view_id = self -> view_id;
                                     update_view_msg.type = 2;
-                                    update_view_msg.new_proc_id = this -> pending_member_id;
-                                    get_member_list(update_view_msg.member_list);
+                                    update_view_msg.new_proc_id = self -> pending_member_id;
+                                    get_member_list(update_view_msg.member_list, self);
 
                                     logger -> info("sending view msg: {}", update_view_msg.type);
                                     logger -> info("sending view msg: {}", update_view_msg.new_proc_id);
                                     logger -> info("sending view msg: {}", update_view_msg.view_id);
 
-                                    bring_proc_online(update_view_msg.member_list);
+                                    bring_proc_online(update_view_msg.member_list, self);
 
-                                    this -> pending_member_id = -1; // reset pending member id;
+                                    self -> pending_member_id = -1; // reset pending member id;
 
                                     new_view_msg* packged_msg = hton(&update_view_msg);
 
@@ -232,7 +233,7 @@ void Process::start_leader() {
                                             }
                                         }
                                     }
-                                    this -> curr_state = process_state::Waiting_ACK;
+                                    self -> curr_state = process_state::Waiting_ACK;
                                 }
                                 break;
                             }
@@ -240,22 +241,22 @@ void Process::start_leader() {
                             {
                                 OK_Msg* recved_msg = ntoh((OK_Msg *) buf);
                                 int peer_id = recved_msg->peer_id;
-                                this -> members[peer_id].acknowledge = true;
+                                self -> members[peer_id].acknowledge = true;
 
-                                if (all_member_ack()) {
-                                    this -> curr_state = process_state::LEADER;
-                                    this -> view_id += 1;
+                                if (all_member_ack(self)) {
+                                    self -> curr_state = process_state::LEADER;
+                                    self -> view_id += 1;
 
-                                    this -> members[this -> pending_member_id].alive = true;
+                                    self -> members[self -> pending_member_id].alive = true;
 
                                     new_view_msg update_view_msg;
-                                    update_view_msg.view_id = this -> view_id;
+                                    update_view_msg.view_id = self -> view_id;
                                     update_view_msg.type = 2;
-                                    update_view_msg.new_proc_id = this -> pending_member_id;
-                                    get_member_list(update_view_msg.member_list);
+                                    update_view_msg.new_proc_id = self -> pending_member_id;
+                                    get_member_list(update_view_msg.member_list, self);
 
-                                    this -> pending_member_id = -1; // reset pending member id;
-                                    bring_proc_online(update_view_msg.member_list);
+                                    self -> pending_member_id = -1; // reset pending member id;
+                                    bring_proc_online(update_view_msg.member_list, self);
 
                                     new_view_msg* packged_msg = hton(&update_view_msg);
 
@@ -278,34 +279,31 @@ void Process::start_leader() {
         }
     }
 }
-void Process::get_member_list(char* arr) {
-    for (int i = 0; i < this -> members.size(); i++) {
-        if (this -> members[i].alive) {
+void Process::get_member_list(char* arr, Process* self) {
+    for (int i = 0; i < self -> members.size(); i++) {
+        if (self -> members[i].alive) {
             arr[i] = 't';
         } else arr[i] = 'f';
     }
 }
-void Process::bring_proc_online(char* proc_id) {
+void Process::bring_proc_online(char* proc_id, Process* self) {
     const auto logger = spdlog::get("console");
-    logger ->info("view id is: {}", this -> view_id);
-    for (int i = 0; i < this -> members.size(); i++) {
+    logger ->info("view id is: {}", self -> view_id);
+    for (int i = 0; i < self -> members.size(); i++) {
         if (proc_id[i] == 't') {
-            this -> members[i].alive = true;
-            logger ->info("{} is alive", this -> members[i].address);
-        } else this -> members[i].alive = false;
+            self -> members[i].alive = true;
+            logger ->info("{} is alive", self -> members[i].address);
+        } else self -> members[i].alive = false;
     }
 }
-void Process::handle_message(int size, char* buffer) {
-}
-void Process::init_new_view() {}
-bool Process::all_member_ack() {
-    for (const auto &n : this -> members ) {
+bool Process::all_member_ack(Process* self) {
+    for (const auto &n : self -> members ) {
         if (!n.alive) continue;
         if (!n.acknowledge) return false;
     }
     return true;
 }
-void Process::broadcast_req_msg(Req_Msg* msg) {
+void Process::broadcast_heartbeat(Req_Msg *msg) {
     const auto logger = spdlog::get("console");
     char buffer[sizeof(Req_Msg)];
     memcpy(buffer, msg, sizeof(Req_Msg));
@@ -384,8 +382,11 @@ msg_type Process::check_msg_type(void *msg, ssize_t size) {
         return msg_type::unknown;
     }
 }
-void Process::start_member() {
+void *Process::tcp_member_listen(void *) {
+}
+void *Process::start_member(void * member) {
     const auto logger = spdlog::get("console");
+    auto self = (Process *) member;
     int sockfd, numbytes;
     char buf[1024];
     struct addrinfo hints, *servinfo, *p;
@@ -396,8 +397,8 @@ void Process::start_member() {
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    auto leader_addr = this -> members[this -> leader_id].address;
-    if ( (rv = getaddrinfo(leader_addr.c_str(), this -> port.c_str(), &hints, &servinfo)) != 0 ) {
+    auto leader_addr = self -> members[self -> leader_id].address;
+    if ( (rv = getaddrinfo(leader_addr.c_str(), self -> port.c_str(), &hints, &servinfo)) != 0 ) {
         logger -> error("unable to get leader addr");
     }
 
@@ -424,22 +425,22 @@ void Process::start_member() {
 
     join_msg msg;
     msg.type = 4;
-    msg.proc_id = this -> my_id;
-    this -> members[this -> leader_id].alive = true; // set the leader to be alive
+    msg.proc_id = self -> my_id;
+    self -> members[self -> leader_id].alive = true; // set the leader to be alive
 
     // ask to join the group
     join_msg* msg_to_send = hton(&msg);
-    this -> curr_state = process_state::MEMBER;
+    self -> curr_state = process_state::MEMBER;
     if (send(sockfd, msg_to_send, sizeof(join_msg), 0) == -1)
         logger -> error("error sending new view msg");
 
     freeaddrinfo(servinfo);
 
     while (true) {
-        logger -> info("listening, view is: {}", this -> view_id);
-        for (const auto &n : this -> members) {
-            if (n.alive) logger -> info("{} is alive", n.address);
-        }
+//        logger -> info("listening, view is: {}", this -> view_id);
+//        for (const auto &n : this -> members) {
+//            if (n.alive) logger -> info("{} is alive", n.address);
+//        }
         if ( (numbytes = recv(sockfd, buf, 1024, 0)) <= 0 ) {
             if (numbytes == 0) logger -> error("server hung up");
             else logger -> error("recv error");
@@ -452,7 +453,7 @@ void Process::start_member() {
                 {
                     OK_Msg ok_msg;
                     ok_msg.type = 1;
-                    ok_msg.peer_id = this -> my_id;
+                    ok_msg.peer_id = self -> my_id;
 
                     OK_Msg* packaged_msg = hton(&ok_msg);
 
@@ -464,8 +465,8 @@ void Process::start_member() {
                 case msg_type ::new_view:
                 {
                     new_view_msg* recved_msg = ntoh((new_view_msg *) buf);
-                    this -> view_id = recved_msg -> view_id;
-                    bring_proc_online(recved_msg -> member_list);
+                    self -> view_id = recved_msg -> view_id;
+                    bring_proc_online(recved_msg -> member_list, self);
 
                     break;
                 }
@@ -476,24 +477,4 @@ void Process::start_member() {
     }
 }
 void Process::init() {
-    auto logger = spdlog::get("console");
-    while (true) {
-        switch (this -> curr_state) {
-            case process_state::LEADER:
-                start_leader();
-                break;
-            case process_state::NON_MEMBER:
-                request_membership();
-                break;
-            case process_state::MEMBER:
-                start_member();
-                break;
-            case process_state ::Waiting_ACK:
-                start_leader();
-                break;
-            default:
-                logger -> error("unknown state");
-                break;
-        }
-    }
 }
