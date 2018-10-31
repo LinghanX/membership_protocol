@@ -188,7 +188,6 @@ void Process::start_leader() {
                                     this -> curr_state = process_state::LEADER;
                                     this -> view_id += 1;
 
-                                    logger -> info("l 191");
                                     this -> members[this -> pending_member_id].alive = true;
 
                                     new_view_msg update_view_msg;
@@ -200,6 +199,8 @@ void Process::start_leader() {
                                     logger -> info("sending view msg: {}", update_view_msg.type);
                                     logger -> info("sending view msg: {}", update_view_msg.new_proc_id);
                                     logger -> info("sending view msg: {}", update_view_msg.view_id);
+
+                                    bring_proc_online(update_view_msg.member_list);
 
                                     this -> pending_member_id = -1; // reset pending member id;
 
@@ -251,6 +252,7 @@ void Process::start_leader() {
                                     get_member_list(update_view_msg.member_list);
 
                                     this -> pending_member_id = -1; // reset pending member id;
+                                    bring_proc_online(update_view_msg.member_list);
 
                                     new_view_msg* packged_msg = hton(&update_view_msg);
 
