@@ -359,7 +359,7 @@ void Process::recv_msg(std::string addr, Process * self) {
                              (struct sockaddr *)&their_addr, &addr_len)) == -1) {
         perror("recvfrom");
     }
-    int sender_id = ((char *) buf)[0];
+    int sender_id = ((char *) buf)[0] - '0';
 
     printf("listener: got packet from %s\n",
            inet_ntop(their_addr.ss_family,
