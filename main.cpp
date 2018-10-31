@@ -25,7 +25,14 @@ int main(int argc, char **argv) {
     } else {
         if ( rc1 = pthread_create(&tcp_thread, NULL, &Process::start_member, process)) {}
     }
+    rc2 = pthread_create(&udp_send_thread, NULL, &Process::start_udp_send, process);
+
+    sleep(1);
+    rc3 = pthread_create(&udp_listen_thread, NULL, &Process::start_udp_listen, process);
+
     pthread_join(tcp_thread, NULL);
+    pthread_join(udp_listen_thread, NULL);
+    pthread_join(udp_send_thread, NULL);
 
     return 0;
 }

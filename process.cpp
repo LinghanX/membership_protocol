@@ -31,6 +31,7 @@ Process::Process(std::vector<std::string> &addr_book, std::string port) {
         curr_member.alive = false;
         curr_member.id = id;
         curr_member.acknowledge = false;
+        curr_member.last_heartbeat_received = std::chrono::high_resolution_clock::now();
 
         if (addr.compare(currHostName) == 0) {
             find_id = true;
@@ -44,6 +45,7 @@ Process::Process(std::vector<std::string> &addr_book, std::string port) {
     if (!find_id) logger -> error("unable to parse my id");
 
     this -> port = std::move(port);
+    this -> udp_port = "22222";
     this -> view_id = 0;
     this -> addr_book = addr_book;
     this -> pending_member_id = -1;
@@ -69,15 +71,6 @@ void *get_in_addr(struct sockaddr *sa) {
     }
 
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
-}
-void Process::request_membership() {
-    join_msg msg;
-    msg.type = 4;
-    msg.proc_id = this -> my_id;
-
-    join_msg* msg_to_send = hton(&msg);
-    send_msg(msg_to_send, this -> members[0].address, sizeof(join_msg));
-    this -> curr_state = process_state::MEMBER;
 }
 void *Process::start_leader(void *proc){
     auto self = (Process *) proc;
@@ -303,45 +296,50 @@ bool Process::all_member_ack(Process* self) {
     }
     return true;
 }
-void Process::broadcast_heartbeat(Req_Msg *msg) {
-    const auto logger = spdlog::get("console");
-    char buffer[sizeof(Req_Msg)];
-    memcpy(buffer, msg, sizeof(Req_Msg));
+void *Process::start_udp_listen(void *proc) {
+    auto self = (Process *) proc;
 
-    Req_Msg* converted_msg = hton(msg);
-    if (converted_msg != nullptr) {
-        for (const auto &n : this -> members) {
-            if (n.alive) {
-                send_msg(converted_msg, n.address, sizeof(Req_Msg));
-            }
+    while (true) {
+        sleep(5);
+
+        for (const auto &n: self -> members) {
+            if (n.id == self -> my_id) continue;
+            recv_msg(n.address, self);
         }
     }
-};
-void Process::send_msg(void *msg, std::string addr, ssize_t size) {
-    int sockfd, numbytes;
+}
+void Process::recv_msg(std::string addr, Process * self) {
+    const auto logger = spdlog::get("console");
+
+    int sockfd;
     struct addrinfo hints, *servinfo, *p;
     int rv;
+    int numbytes;
+    struct sockaddr_storage their_addr;
+    char buf[1024];
+    socklen_t addr_len;
     char s[INET6_ADDRSTRLEN];
 
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family = AF_UNSPEC; // set to AF_INET to force IPv4
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags = AI_PASSIVE; // use my IP
 
-    if ((rv = getaddrinfo(addr.c_str(), this -> port.c_str(), &hints, &servinfo)) != 0) {
+    if ((rv = getaddrinfo(NULL, self -> udp_port.c_str(), &hints, &servinfo)) != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
     }
 
-    // loop through all the results and connect to the first we can
+    // loop through all the results and bind to the first we can
     for(p = servinfo; p != NULL; p = p->ai_next) {
         if ((sockfd = socket(p->ai_family, p->ai_socktype,
                              p->ai_protocol)) == -1) {
-            perror("client: socket");
+            perror("listener: socket");
             continue;
         }
 
-        if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+        if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
             close(sockfd);
-            perror("client: connect");
+            perror("listener: bind");
             continue;
         }
 
@@ -349,19 +347,84 @@ void Process::send_msg(void *msg, std::string addr, ssize_t size) {
     }
 
     if (p == NULL) {
-        fprintf(stderr, "client: failed to connect\n");
+        fprintf(stderr, "listener: failed to bind socket\n");
     }
 
-    inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),
-              s, sizeof s);
-    printf("l 336: client: connecting to %s\n", s);
-    freeaddrinfo(servinfo); // all done with this structure
+    freeaddrinfo(servinfo);
 
-    if ((numbytes = send(sockfd, msg, size, 0)) == -1) {
-        perror("recv");
+    printf("listener: waiting to recvfrom...\n");
+
+    addr_len = sizeof their_addr;
+    if ((numbytes = recvfrom(sockfd, buf, 1024-1 , 0,
+                             (struct sockaddr *)&their_addr, &addr_len)) == -1) {
+        perror("recvfrom");
     }
+
+    printf("listener: got packet from %s\n",
+           inet_ntop(their_addr.ss_family,
+                     get_in_addr((struct sockaddr *)&their_addr),
+                     s, sizeof s));
+    printf("listener: packet is %d bytes long\n", numbytes);
+    buf[numbytes] = '\0';
+    printf("listener: packet contains \"%s\"\n", buf);
+
     close(sockfd);
 }
+void *Process::start_udp_send(void *proc) {
+    auto self = (Process *) proc;
+
+    while (true) {
+        sleep(5);
+
+        for (const auto &n : self -> members) {
+            if (n.id == self -> my_id) continue;
+            send_msg(n.address, sizeof(int), self);
+        }
+    }
+}
+void Process::send_msg(std::string addr, ssize_t size, Process* self) {
+    const auto logger = spdlog::get("console");
+
+    int sockfd;
+    struct addrinfo hints, *servinfo, *p;
+    int rv;
+    int numbytes;
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+
+    if ((rv = getaddrinfo(addr.c_str(), self -> udp_port.c_str(), &hints, &servinfo)) != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+    }
+
+    // loop through all the results and make a socket
+    for(p = servinfo; p != NULL; p = p->ai_next) {
+        if ((sockfd = socket(p->ai_family, p->ai_socktype,
+                             p->ai_protocol)) == -1) {
+            perror("talker: socket");
+            continue;
+        }
+
+        break;
+    }
+
+    if (p == NULL) {
+        fprintf(stderr, "talker: failed to create socket\n");
+    }
+
+    if ((numbytes = sendto(sockfd, &self -> my_id, sizeof(self -> my_id), 0,
+                           p->ai_addr, p->ai_addrlen)) == -1) {
+        perror("talker: sendto");
+        exit(1);
+    }
+
+    freeaddrinfo(servinfo);
+
+    printf("talker: sent %d bytes to %s\n", numbytes, &addr);
+    close(sockfd);
+}
+
 msg_type Process::check_msg_type(void *msg, ssize_t size) {
     const auto logger = spdlog::get("console");
     int *first_int = (int *) msg;
@@ -462,7 +525,7 @@ void *Process::start_member(void * member) {
 
                     break;
                 }
-                case msg_type ::new_view:
+                case msg_type::new_view:
                 {
                     new_view_msg* recved_msg = ntoh((new_view_msg *) buf);
                     self -> view_id = recved_msg -> view_id;

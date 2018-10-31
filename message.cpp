@@ -5,10 +5,18 @@
 #include "message.h"
 
 //typedef struct {
-//    int type;
-//    int view_id;
-//    int new_proc_id;
-//} new_view_msg ;
+//    uint32_t type;
+//    uint32_t proc_id;
+//} heartbeat_msg;
+heartbeat_msg* hton(heartbeat_msg* msg) {
+    msg -> type = htonl(msg -> type);
+    msg -> proc_id = htonl(msg -> proc_id);
+    return msg;
+}
+heartbeat_msg* ntoh(heartbeat_msg* msg) {
+    msg -> proc_id = ntohl(msg -> proc_id);
+    return msg;
+}
 new_view_msg* hton(new_view_msg* msg){
     msg -> type = htonl(msg -> type);
     msg -> view_id = htonl(msg -> view_id);
