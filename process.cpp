@@ -310,6 +310,8 @@ void *Process::start_udp_listen(void *proc) {
             if (sender_id < 0) { // no message received;
                 if (std::chrono::duration_cast<std::chrono::seconds>(curr - n.last_heartbeat_received).count() > 10) {
                     logger -> critical("process: {} is offline", n.id);
+                } else {
+                    logger -> info("else");
                 }
             } else {
                 n.last_heartbeat_received = curr;
@@ -435,7 +437,7 @@ void Process::send_msg(std::string addr, ssize_t size, Process* self) {
 
     freeaddrinfo(servinfo);
 
-    printf("talker: sent %d bytes to %s\n", numbytes, addr.c_str());
+//    printf("talker: sent %d bytes to %s\n", numbytes, addr.c_str());
     close(sockfd);
 }
 msg_type Process::check_msg_type(void *msg, ssize_t size) {
