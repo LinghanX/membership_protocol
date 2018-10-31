@@ -282,11 +282,11 @@ void Process::get_member_list(char* arr) {
 }
 void Process::bring_proc_online(char* proc_id) {
     const auto logger = spdlog::get("console");
-    logger ->info("bringing process {} online, current view is:", proc_id);
     logger ->info("view id is: {}", this -> view_id);
     for (int i = 0; i < this -> members.size(); i++) {
         if (proc_id[i] == 't') {
             this -> members[i].alive = true;
+            logger ->info("{} is alive", this -> members[i].address);
         } else this -> members[i].alive = false;
     }
 }
